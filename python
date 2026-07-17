@@ -1,0 +1,83 @@
+import json
+import boto3
+
+# Bedrock client
+bedrock = boto3.client(
+    service_name="bedrock-runtime",
+    region_name="us-east-1"
+)
+
+# SES client
+ses = boto3.client(
+    service_name="ses",
+    region_name="us-east-1"
+)
+
+MODEL_ID = "amazon.nova-lite-v1:0"
+
+SENDER_EMAIL = "thalagaming363@gmail.com"
+RECEIVER_EMAIL = "thalagaming363@gmail.com"
+
+def lambda_handler(event, context):
+
+    prompt = """
+You are a stock market analyst.
+
+Generate a short Indian stock market morning report containing:
+1. Market Overview
+2. Top 3 Sectors to Watch
+3. General Trading Tips
+
+Keep it under 200 words.
+"""
+
+    request_body = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
+
+    # Generate report using Bedrock
+    response = bedrock.invoke_model(
+        modelId=MODEL_ID,
+        body=json.dumps(request_body)
+    )
+
+    result = json.loads(response["body"].read())
+
+    report = result["output"]["message"]["content"][0]["text"]
+
+    # Send email using SES
+    ses.send_email(
+        Source=SENDER_EMAIL,
+        Destination={
+            "ToAddresses": [
+                RECEIVER_EMAIL
+            ]
+        },
+        Message={
+            "Subject": {
+                "Data": "📈 Daily Share Market Report"
+            },
+            "Body": {
+                "Text": {
+                    "Data": report
+                }
+            }
+        }
+    )
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "message": "Email sent successfully!",
+            "report": report
+        })
+    }
